@@ -10,6 +10,6 @@ echo "[Deploy] Installing dependencies..."
 npm install --production
 
 echo "[Deploy] Restarting app..."
-pm2 restart ecosystem.config.js
+pm2 restart ecosystem.config.cjs
 
 echo "[Deploy] Done."
