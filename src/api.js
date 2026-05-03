@@ -113,6 +113,7 @@ export const api = {
   toggleModel: (id) =>
     request(`/admin/models/${id}/toggle`, { method: 'PUT' }),
 
-  // Public - active models
+  // Public - active models & config
   getActiveModels: () => request('/models'),
+  getPublicConfig: () => request('/public-config'),
 };

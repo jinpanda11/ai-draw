@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { spawn } from 'child_process';
 import crypto from 'crypto';
-import { initDb, all } from './db.js';
+import { initDb, all, get } from './db.js';
 
 import authRoutes from './routes/auth.js';
 import generateRoutes from './routes/generate.js';
@@ -43,6 +43,16 @@ app.get('/api/models', (req, res) => {
     res.json(models);
   } catch (err) {
     res.status(500).json({ error: '获取模型列表失败' });
+  }
+});
+
+// Public: config for unauthenticated users
+app.get('/api/public-config', (req, res) => {
+  try {
+    const row = get("SELECT value FROM settings WHERE key='daily_free_limit'");
+    res.json({ dailyLimit: parseInt(row?.value) || parseInt(process.env.DAILY_FREE_LIMIT) || 10 });
+  } catch (err) {
+    res.json({ dailyLimit: parseInt(process.env.DAILY_FREE_LIMIT) || 10 });
   }
 });
 

@@ -26,6 +26,7 @@ let state = {
   verificationEnabled: true,
   models: [],
   modelsLoaded: false,
+  dailyLimit: 10,
 };
 
 export async function renderHomePage(container) {
@@ -33,11 +34,20 @@ export async function renderHomePage(container) {
   if (auth.isLoggedIn()) {
     try {
       const user = await auth.refreshUser();
-      if (user) state.user = user;
+      if (user) {
+        state.user = user;
+        state.dailyLimit = user.dailyLimit || state.dailyLimit;
+      }
     } catch {}
   } else {
     state.user = null;
   }
+
+  // Load public config for daily limit (works without login)
+  try {
+    const config = await api.getPublicConfig();
+    if (config.dailyLimit) state.dailyLimit = config.dailyLimit;
+  } catch {}
 
   // Load models if not loaded
   if (!state.modelsLoaded) {
@@ -62,7 +72,7 @@ function render() {
   const { user, generating, results, showAdvanced, announcement, announcementDismissed, showLoginModal, loginEmail, loginCountdown } = state;
   const isLoggedIn = !!user;
   const remaining = user?.remaining ?? 0;
-  const dailyLimit = user?.dailyLimit ?? 10;
+  const dailyLimit = state.dailyLimit;
   const previewUrls = state.referenceUrls;
 
   const app = document.getElementById('app');
