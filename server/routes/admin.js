@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { all, run, get } from '../db.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
+import { resetTransporter, getSMTPConfig } from '../services/email.js';
 
 const router = Router();
 
@@ -129,6 +130,30 @@ router.put('/api-settings', (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: '更新API设置失败' });
+  }
+});
+
+// Get SMTP settings
+router.get('/smtp-settings', (req, res) => {
+  try {
+    res.json(getSMTPConfig());
+  } catch (err) {
+    res.status(500).json({ error: '获取SMTP设置失败' });
+  }
+});
+
+// Update SMTP settings
+router.put('/smtp-settings', (req, res) => {
+  try {
+    const { host, port, user, pass } = req.body;
+    if (host !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_host', host]);
+    if (port !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_port', String(port)]);
+    if (user !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_user', user]);
+    if (pass !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_pass', pass]);
+    resetTransporter();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: '更新SMTP设置失败' });
   }
 });
 

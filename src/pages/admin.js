@@ -3,6 +3,7 @@ import { auth } from '../auth.js';
 
 let stats = null;
 let apiSettings = null;
+let smtpSettings = null;
 let models = [];
 let editingModelId = null;
 
@@ -28,14 +29,16 @@ export async function renderAdminPage(container) {
   }
 
   try {
-    [stats, apiSettings, models] = await Promise.all([
+    [stats, apiSettings, smtpSettings, models] = await Promise.all([
       api.adminStats(),
       api.getApiSettings(),
+      api.getSMTPSettings(),
       api.getModels(),
     ]);
   } catch {
     stats = null;
     apiSettings = null;
+    smtpSettings = null;
     models = [];
   }
   render(container);
@@ -105,6 +108,34 @@ function render(container) {
             <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${stats.emailVerificationEnabled ? 'translate-x-6' : ''}"></span>
           </button>
         </div>
+      </div>
+
+      <!-- SMTP Settings -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">邮件服务配置 (SMTP)</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">SMTP 服务器</label>
+            <input id="smtp-host" type="text" value="${escapeHtml(smtpSettings?.host || '')}" placeholder="smtp.qq.com"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">端口</label>
+            <input id="smtp-port" type="number" value="${smtpSettings?.port || 465}" placeholder="465"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">发件邮箱</label>
+            <input id="smtp-user" type="text" value="${escapeHtml(smtpSettings?.user || '')}" placeholder="your@qq.com"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">授权码</label>
+            <input id="smtp-pass" type="password" value="${escapeHtml(smtpSettings?.pass || '')}" placeholder="QQ邮箱授权码"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
+          </div>
+        </div>
+        <button id="save-smtp-settings" class="mt-4 bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium">保存 SMTP 配置</button>
       </div>
 
       <!-- API Settings -->
@@ -310,6 +341,21 @@ function bindEvents(container) {
       await api.updateSetting('email_verification_enabled', newVal);
       stats.emailVerificationEnabled = !stats.emailVerificationEnabled;
       render(container);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // SMTP Settings save
+  document.getElementById('save-smtp-settings')?.addEventListener('click', async () => {
+    const host = document.getElementById('smtp-host')?.value?.trim() || '';
+    const port = parseInt(document.getElementById('smtp-port')?.value) || 465;
+    const user = document.getElementById('smtp-user')?.value?.trim() || '';
+    const pass = document.getElementById('smtp-pass')?.value || '';
+    try {
+      await api.updateSMTPSettings({ host, port, user, pass });
+      smtpSettings = { host, port, user, pass };
+      alert('SMTP 配置已保存');
     } catch (err) {
       alert(err.message);
     }

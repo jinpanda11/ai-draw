@@ -103,6 +103,17 @@ export async function initDb() {
   db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_free_limit', '10')");
   db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('email_verification_enabled', '1')");
 
+  // Default SMTP settings (use env values if set, otherwise empty)
+  const smtpDefaults = [
+    ['smtp_host', process.env.SMTP_HOST || ''],
+    ['smtp_port', process.env.SMTP_PORT || '465'],
+    ['smtp_user', process.env.SMTP_USER || ''],
+    ['smtp_pass', process.env.SMTP_PASS || ''],
+  ];
+  for (const [key, value] of smtpDefaults) {
+    db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", [key, value]);
+  }
+
   // Default API settings
   db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('api_key', '')");
   db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('api_url_0', 'https://grsai.dakka.com.cn')");

@@ -102,6 +102,11 @@ export const api = {
   updateApiSettings: (apiKey, urls) =>
     request('/admin/api-settings', { method: 'PUT', body: { apiKey, urls } }),
 
+  // Admin - SMTP settings
+  getSMTPSettings: () => request('/admin/smtp-settings'),
+  updateSMTPSettings: (data) =>
+    request('/admin/smtp-settings', { method: 'PUT', body: data }),
+
   // Admin - models
   getModels: () => request('/admin/models'),
   createModel: (data) =>

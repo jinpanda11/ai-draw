@@ -1,17 +1,38 @@
 import nodemailer from 'nodemailer';
+import { get } from '../db.js';
 
 let transporter = null;
+
+function getSMTPConfig() {
+  const host = get("SELECT value FROM settings WHERE key='smtp_host'");
+  const port = get("SELECT value FROM settings WHERE key='smtp_port'");
+  const user = get("SELECT value FROM settings WHERE key='smtp_user'");
+  const pass = get("SELECT value FROM settings WHERE key='smtp_pass'");
+
+  return {
+    host: host?.value || process.env.SMTP_HOST || '',
+    port: parseInt(port?.value) || parseInt(process.env.SMTP_PORT) || 465,
+    user: user?.value || process.env.SMTP_USER || '',
+    pass: pass?.value || process.env.SMTP_PASS || '',
+  };
+}
+
+export function resetTransporter() {
+  transporter = null;
+}
 
 function getTransporter() {
   if (transporter) return transporter;
 
+  const config = getSMTPConfig();
+
   transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT),
-    secure: parseInt(process.env.SMTP_PORT) === 465,
+    host: config.host,
+    port: config.port,
+    secure: config.port === 465,
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      user: config.user,
+      pass: config.pass,
     },
   });
 
@@ -19,9 +40,10 @@ function getTransporter() {
 }
 
 export async function sendVerificationCode(email, code) {
+  const config = getSMTPConfig();
   const t = getTransporter();
   await t.sendMail({
-    from: process.env.SMTP_USER,
+    from: config.user,
     to: email,
     subject: 'AI画图站 - 验证码',
     html: `
@@ -36,3 +58,5 @@ export async function sendVerificationCode(email, code) {
     `,
   });
 }
+
+export { getSMTPConfig };
