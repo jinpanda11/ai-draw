@@ -16,6 +16,7 @@ let state = {
   announcement: null,
   announcementDismissed: false,
   showLoginModal: false,
+  showExhaustedModal: false,
   loginMode: 'login',
   loginStep: 'email',
   loginEmail: '',
@@ -171,6 +172,19 @@ function render() {
             <p class="text-xs text-gray-400 text-center mt-3">注册即表示同意服务条款，每日免费${dailyLimit}次</p>
           </div>
         `}
+      </div>
+    </div>
+    ` : ''}
+
+    <!-- Exhausted Quota Modal -->
+    ${state.showExhaustedModal ? `
+    <div class="modal-overlay" id="exhausted-modal">
+      <div class="modal-content max-w-sm w-full animate-fade-in text-center">
+        <h3 class="text-lg font-bold text-gray-900 mb-2">今日免费次数已用完</h3>
+        <p class="text-sm text-gray-500 mb-6">感谢使用AI画图站，请明天再来生成更多作品</p>
+        <button id="close-exhausted-modal" class="gradient-btn w-full py-2.5 text-white font-medium rounded-xl">
+          知道了
+        </button>
       </div>
     </div>
     ` : ''}
@@ -411,6 +425,20 @@ function bindEvents() {
   document.getElementById('close-login-modal')?.addEventListener('click', () => {
     state.showLoginModal = false;
     render();
+  });
+
+  // Exhausted modal - close
+  document.getElementById('close-exhausted-modal')?.addEventListener('click', () => {
+    state.showExhaustedModal = false;
+    render();
+  });
+
+  // Exhausted modal - click outside to close
+  document.getElementById('exhausted-modal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('exhausted-modal')) {
+      state.showExhaustedModal = false;
+      render();
+    }
   });
 
   // Login modal - tab switching
@@ -656,7 +684,11 @@ function bindEvents() {
       render();
       return;
     }
-    if (auth.getUser() && auth.getUser().remaining <= 0) return;
+    if (auth.getUser() && auth.getUser().remaining <= 0) {
+      state.showExhaustedModal = true;
+      render();
+      return;
+    }
     doGenerate();
   });
 
@@ -744,7 +776,12 @@ async function doGenerate() {
     const user = await auth.refreshUser();
     if (user) state.user = user;
   } catch (err) {
-    alert(err.message);
+    if (err.message && err.message.includes('次数已用完')) {
+      state.showExhaustedModal = true;
+      render();
+    } else {
+      alert(err.message);
+    }
   } finally {
     state.generating = false;
     render();
