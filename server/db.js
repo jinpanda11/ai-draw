@@ -96,6 +96,8 @@ export async function initDb() {
   try { db.run('ALTER TABLE users ADD COLUMN role TEXT DEFAULT \'user\''); } catch {}
   // Migration: Add password column if not exists
   try { db.run("ALTER TABLE users ADD COLUMN password TEXT DEFAULT ''"); } catch {}
+  // Migration: Track whether daily quota was exhausted
+  try { db.run('ALTER TABLE users ADD COLUMN quota_exhausted_today INTEGER DEFAULT 0'); } catch {}
 
   // Insert default settings if not exist
   db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_free_limit', '10')");
