@@ -88,6 +88,7 @@ export const api = {
 
   // Admin
   adminStats: () => request('/admin/stats'),
+  getUsers: () => request('/admin/users'),
   createAnnouncement: (title, content) =>
     request('/admin/announcements', { method: 'POST', body: { title, content } }),
   updateAnnouncement: (id, data) =>

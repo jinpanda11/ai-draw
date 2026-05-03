@@ -157,6 +157,21 @@ router.put('/smtp-settings', (req, res) => {
   }
 });
 
+// List all users
+router.get('/users', (req, res) => {
+  try {
+    const users = all(`
+      SELECT u.id, u.email, u.role, u.created_at, u.free_count_today, u.last_free_date,
+        (SELECT COUNT(*) FROM history h WHERE h.user_id = u.id) AS total_generations
+      FROM users u
+      ORDER BY u.created_at DESC
+    `);
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: '获取用户列表失败' });
+  }
+});
+
 // List all models
 router.get('/models', (req, res) => {
   try {

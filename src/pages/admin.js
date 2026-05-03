@@ -5,6 +5,7 @@ let stats = null;
 let apiSettings = null;
 let smtpSettings = null;
 let models = [];
+let users = [];
 let editingModelId = null;
 
 export async function renderAdminPage(container) {
@@ -29,17 +30,19 @@ export async function renderAdminPage(container) {
   }
 
   try {
-    [stats, apiSettings, smtpSettings, models] = await Promise.all([
+    [stats, apiSettings, smtpSettings, models, users] = await Promise.all([
       api.adminStats(),
       api.getApiSettings(),
       api.getSMTPSettings(),
       api.getModels(),
+      api.getUsers(),
     ]);
   } catch {
     stats = null;
     apiSettings = null;
     smtpSettings = null;
     models = [];
+    users = [];
   }
   render(container);
 }
@@ -92,6 +95,40 @@ function render(container) {
               class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-xl font-bold text-center focus:ring-2 focus:ring-purple-500 outline-none">
             <button id="save-daily-limit" class="text-sm bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700">保存</button>
           </div>
+        </div>
+      </div>
+
+      <!-- User List -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">用户列表 (${users.length})</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-gray-500 border-b border-gray-100">
+                <th class="pb-3 font-medium">邮箱</th>
+                <th class="pb-3 font-medium">角色</th>
+                <th class="pb-3 font-medium">注册时间</th>
+                <th class="pb-3 font-medium">今日已用</th>
+                <th class="pb-3 font-medium">总生成</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${users.length === 0 ? `
+                <tr><td colspan="5" class="py-8 text-center text-gray-400">暂无用户</td></tr>
+              ` : users.map(u => {
+                const today = new Date().toISOString().slice(0, 10);
+                const usedToday = u.last_free_date === today ? (u.free_count_today || 0) : 0;
+                return `
+                <tr class="border-b border-gray-50 hover:bg-gray-50">
+                  <td class="py-3 text-gray-900">${escapeHtml(u.email)}</td>
+                  <td class="py-3">${u.role === 'admin' ? '<span class="text-red-600 font-medium">管理员</span>' : '<span class="text-gray-500">用户</span>'}</td>
+                  <td class="py-3 text-gray-500">${(u.created_at || '').substring(0, 10)}</td>
+                  <td class="py-3 text-gray-900">${usedToday}</td>
+                  <td class="py-3 text-gray-900">${u.total_generations || 0}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
         </div>
       </div>
 
