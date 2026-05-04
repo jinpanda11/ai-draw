@@ -145,6 +145,7 @@ router.get('/smtp-settings', (req, res) => {
       port: config.port,
       user: config.user,
       passSet: isSMTPPassSet(),
+      from: config.from || '',
     });
   } catch (err) {
     res.status(500).json({ error: '获取SMTP设置失败' });
@@ -154,10 +155,11 @@ router.get('/smtp-settings', (req, res) => {
 // Update SMTP settings
 router.put('/smtp-settings', (req, res) => {
   try {
-    const { host, port, user, pass } = req.body;
+    const { host, port, user, pass, from } = req.body;
     if (host !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_host', host]);
     if (port !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_port', String(port)]);
     if (user !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_user', user]);
+    if (from !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_from', from]);
     if (pass !== undefined && pass !== '') {
       const encPass = encrypt(String(pass));
       run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_pass', encPass]);

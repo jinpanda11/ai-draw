@@ -9,6 +9,7 @@ function getSMTPConfig() {
   const port = get("SELECT value FROM settings WHERE key='smtp_port'");
   const user = get("SELECT value FROM settings WHERE key='smtp_user'");
   const passRow = get("SELECT value FROM settings WHERE key='smtp_pass'");
+  const fromRow = get("SELECT value FROM settings WHERE key='smtp_from'");
 
   const dbPass = passRow?.value;
   const pass = dbPass ? decrypt(dbPass) : (process.env.SMTP_PASS || '');
@@ -18,6 +19,7 @@ function getSMTPConfig() {
     port: parseInt(port?.value) || parseInt(process.env.SMTP_PORT) || 465,
     user: user?.value || process.env.SMTP_USER || '',
     pass,
+    from: fromRow?.value || process.env.SMTP_FROM || user?.value || process.env.SMTP_USER || '',
   };
 }
 
@@ -52,7 +54,7 @@ export async function sendVerificationCode(email, code) {
   const config = getSMTPConfig();
   const t = getTransporter();
   await t.sendMail({
-    from: config.user,
+    from: config.from,
     to: email,
     subject: 'AI画图站 - 验证码',
     html: `
