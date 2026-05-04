@@ -11,6 +11,7 @@ server/public/generated/*
 *.db-shm
 .DS_Store
 .claude/
+logs/
 Grsai.html
 Grsai_files/
 banana.html

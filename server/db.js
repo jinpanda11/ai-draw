@@ -98,6 +98,10 @@ export async function initDb() {
   try { db.run("ALTER TABLE users ADD COLUMN password TEXT DEFAULT ''"); } catch {}
   // Migration: Track whether daily quota was exhausted
   try { db.run('ALTER TABLE users ADD COLUMN quota_exhausted_today INTEGER DEFAULT 0'); } catch {}
+  // Migration: Add display_size to announcements
+  try { db.run("ALTER TABLE announcements ADD COLUMN display_size TEXT DEFAULT 'md'"); } catch {}
+  // Migration: Add token_version for JWT revocation
+  try { db.run('ALTER TABLE users ADD COLUMN token_version INTEGER DEFAULT 0'); } catch {}
 
   // Insert default settings if not exist
   db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_free_limit', '10')");

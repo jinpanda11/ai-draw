@@ -81,18 +81,22 @@ function render() {
 
   app.innerHTML = `
     <!-- Announcement Modal -->
-    ${announcement && !announcementDismissed ? `
+    ${announcement && !announcementDismissed ? (() => {
+      const size = announcement.display_size || 'md';
+      const sizeMap = { sm: ['py-2', 'text-xs'], md: ['py-3', 'text-sm'], lg: ['py-4', 'text-base'] };
+      const [modalPy, textSize] = sizeMap[size] || sizeMap.md;
+      return `
     <div class="modal-overlay" id="announcement-modal">
       <div class="modal-content max-w-lg w-full animate-fade-in">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-bold">${escapeHtml(announcement.title)}</h3>
           <button id="close-announcement" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
         </div>
-        <p class="text-gray-600 whitespace-pre-wrap">${escapeHtml(announcement.content)}</p>
-        <button id="dismiss-announcement" class="gradient-btn w-full mt-4 py-2 text-white font-medium rounded-lg">我知道了</button>
+        <p class="text-gray-600 whitespace-pre-wrap ${textSize}">${escapeHtml(announcement.content)}</p>
+        <button id="dismiss-announcement" class="gradient-btn w-full mt-4 ${modalPy} text-white font-medium rounded-lg">我知道了</button>
       </div>
     </div>
-    ` : ''}
+    `})() : ''}
 
     <!-- Login Modal -->
     ${showLoginModal ? `
@@ -219,21 +223,25 @@ function render() {
     </nav>
 
     <!-- Announcement Banner -->
-    ${announcement ? `
+    ${announcement ? (() => {
+      const size = announcement.display_size || 'md';
+      const sizeMap = { sm: ['py-1.5', 'text-xs'], md: ['py-3', 'text-sm'], lg: ['py-4', 'text-base'] };
+      const [py, textSize] = sizeMap[size] || sizeMap.md;
+      return `
     <div id="announcement-banner" class="bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-200">
-      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="max-w-7xl mx-auto px-4 ${py} flex items-center justify-between">
         <div class="flex items-center gap-2 min-w-0">
           <svg class="w-5 h-5 text-purple-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
           </svg>
-          <p class="text-sm text-purple-700 font-medium truncate">
+          <p class="${textSize} text-purple-700 font-medium truncate">
             <span class="font-semibold">${escapeHtml(announcement.title)}：</span>${escapeHtml(announcement.content)}
           </p>
         </div>
         <button id="dismiss-banner" class="text-purple-400 hover:text-purple-600 flex-shrink-0 ml-2 text-lg leading-none">&times;</button>
       </div>
     </div>
-    ` : ''}
+    `})() : ''}
 
     <!-- Main Content -->
     <div class="max-w-7xl mx-auto p-4 md:p-6">
@@ -360,7 +368,7 @@ function render() {
                   <div class="relative group">
                     <img src="${url}" alt="生成结果 ${i+1}"
                       class="image-preview w-full cursor-pointer"
-                      onclick="window._openImageModal('${url}')">
+                      data-image-url="${escapeAttr(url)}">
                     <div class="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                       <a href="${url}" download class="bg-white/90 hover:bg-white rounded-lg p-2 shadow text-gray-700 text-xs" title="下载">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -696,6 +704,14 @@ function bindEvents() {
   document.getElementById('prompt-input')?.addEventListener('input', (e) => { state.prompt = e.target.value; });
   document.getElementById('negative-prompt-input')?.addEventListener('input', (e) => { state.negativePrompt = e.target.value; });
 
+  // Image preview click (delegated, uses data attribute instead of inline onclick)
+  document.addEventListener('click', (e) => {
+    const img = e.target.closest('.image-preview');
+    if (img && img.dataset.imageUrl) {
+      window._openImageModal(img.dataset.imageUrl);
+    }
+  });
+
   // Image modal
   document.getElementById('close-image-modal')?.addEventListener('click', () => {
     document.getElementById('image-modal')?.classList.add('hidden');
@@ -809,6 +825,11 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function escapeAttr(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 window._openImageModal = function(url) {

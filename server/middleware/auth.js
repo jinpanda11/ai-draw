@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
+import { get } from '../db.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is required');
 
 export function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
@@ -14,6 +16,13 @@ export function authMiddleware(req, res, next) {
     req.userId = payload.userId;
     req.userEmail = payload.email;
     req.userRole = payload.role || 'user';
+    req.tokenVersion = payload.tokenVersion || 0;
+
+    // Check if token has been revoked (token_version mismatch)
+    const user = get('SELECT token_version FROM users WHERE id = ?', [req.userId]);
+    if (!user || user.token_version !== req.tokenVersion) {
+      return res.status(401).json({ error: '登录已过期，请重新登录' });
+    }
     next();
   } catch {
     return res.status(401).json({ error: '登录已过期，请重新登录' });
@@ -21,7 +30,12 @@ export function authMiddleware(req, res, next) {
 }
 
 export function signToken(user) {
-  return jwt.sign({ userId: user.id, email: user.email, role: user.role || 'user' }, JWT_SECRET, { expiresIn: '7d' });
+  const tokenVersion = typeof user.token_version === 'number' ? user.token_version : 0;
+  return jwt.sign(
+    { userId: user.id, email: user.email, role: user.role || 'user', tokenVersion },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
 }
 
 export function adminMiddleware(req, res, next) {

@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { all, run, get } from '../db.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
-import { resetTransporter, getSMTPConfig } from '../services/email.js';
+import { resetTransporter, getSMTPConfig, isSMTPPassSet } from '../services/email.js';
+import { encrypt } from '../lib/crypto.js';
 
 const router = Router();
 
@@ -37,11 +38,11 @@ router.get('/stats', (req, res) => {
 // Create announcement
 router.post('/announcements', (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { title, content, display_size } = req.body;
     if (!title || !content) {
       return res.status(400).json({ error: '标题和内容不能为空' });
     }
-    run('INSERT INTO announcements (title, content, is_active) VALUES (?, ?, 1)', [title, content]);
+    run('INSERT INTO announcements (title, content, is_active, display_size) VALUES (?, ?, 1, ?)', [title, content, display_size || 'md']);
     res.json({ ok: true });
   } catch (err) {
     console.error('[admin announcement]', err);
@@ -52,14 +53,16 @@ router.post('/announcements', (req, res) => {
 // Update announcement
 router.put('/announcements/:id', (req, res) => {
   try {
-    const { title, content, is_active } = req.body;
+    const { title, content, is_active, display_size } = req.body;
     const existing = get('SELECT * FROM announcements WHERE id = ?', [req.params.id]);
     if (!existing) return res.status(404).json({ error: '公告不存在' });
 
     run(
-      'UPDATE announcements SET title = ?, content = ?, is_active = ? WHERE id = ?',
+      'UPDATE announcements SET title = ?, content = ?, is_active = ?, display_size = ? WHERE id = ?',
       [title || existing.title, content || existing.content,
-       is_active !== undefined ? is_active : existing.is_active, req.params.id]
+       is_active !== undefined ? is_active : existing.is_active,
+       display_size || existing.display_size || 'md',
+       req.params.id]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -133,10 +136,16 @@ router.put('/api-settings', (req, res) => {
   }
 });
 
-// Get SMTP settings
+// Get SMTP settings (password is masked)
 router.get('/smtp-settings', (req, res) => {
   try {
-    res.json(getSMTPConfig());
+    const config = getSMTPConfig();
+    res.json({
+      host: config.host,
+      port: config.port,
+      user: config.user,
+      passSet: isSMTPPassSet(),
+    });
   } catch (err) {
     res.status(500).json({ error: '获取SMTP设置失败' });
   }
@@ -149,7 +158,10 @@ router.put('/smtp-settings', (req, res) => {
     if (host !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_host', host]);
     if (port !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_port', String(port)]);
     if (user !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_user', user]);
-    if (pass !== undefined) run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_pass', pass]);
+    if (pass !== undefined && pass !== '') {
+      const encPass = encrypt(String(pass));
+      run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['smtp_pass', encPass]);
+    }
     resetTransporter();
     res.json({ ok: true });
   } catch (err) {
@@ -157,18 +169,43 @@ router.put('/smtp-settings', (req, res) => {
   }
 });
 
-// List all users
+// List all users (paginated)
 router.get('/users', (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 20;
+    const offset = (page - 1) * pageSize;
+
+    const total = get('SELECT COUNT(*) AS count FROM users');
     const users = all(`
       SELECT u.id, u.email, u.role, u.created_at, u.free_count_today, u.last_free_date,
         (SELECT COUNT(*) FROM history h WHERE h.user_id = u.id) AS total_generations
       FROM users u
       ORDER BY u.created_at DESC
-    `);
-    res.json(users);
+      LIMIT ? OFFSET ?
+    `, [pageSize, offset]);
+
+    res.json({
+      users,
+      total: total?.count || 0,
+      page,
+      pageSize,
+      totalPages: Math.ceil((total?.count || 0) / pageSize),
+    });
   } catch (err) {
     res.status(500).json({ error: '获取用户列表失败' });
+  }
+});
+
+// Revoke all tokens for a user (force logout)
+router.put('/users/:id/revoke', (req, res) => {
+  try {
+    const user = get('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+    run('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: '操作失败' });
   }
 });
 

@@ -156,7 +156,7 @@ router.post('/', authMiddleware, checkQuota, async (req, res) => {
     });
   } catch (err) {
     console.error('[generate]', err);
-    res.status(500).json({ error: err.message || '生成失败' });
+    res.status(500).json({ error: '生成失败，请稍后重试' });
   }
 });
 
@@ -176,7 +176,7 @@ router.post('/result', authMiddleware, async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[result]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: '查询结果失败，请稍后重试' });
   }
 });
 

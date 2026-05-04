@@ -9,10 +9,12 @@ import { authMiddleware } from '../middleware/auth.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
 
+const extMap = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+
 const storage = multer.diskStorage({
   destination: UPLOADS_DIR,
   filename: (req, file, cb) => {
-    const ext = file.originalname.split('.').pop() || 'png';
+    const ext = extMap[file.mimetype] || 'png';
     cb(null, `${uuidv4()}.${ext}`);
   },
 });

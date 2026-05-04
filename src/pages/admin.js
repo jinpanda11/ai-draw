@@ -5,7 +5,7 @@ let stats = null;
 let apiSettings = null;
 let smtpSettings = null;
 let models = [];
-let users = [];
+let users = { users: [], total: 0, page: 1, totalPages: 1 };
 let editingModelId = null;
 
 export async function renderAdminPage(container) {
@@ -42,7 +42,7 @@ export async function renderAdminPage(container) {
     apiSettings = null;
     smtpSettings = null;
     models = [];
-    users = [];
+    users = { users: [], total: 0, page: 1, totalPages: 1 };
   }
   render(container);
 }
@@ -100,7 +100,7 @@ function render(container) {
 
       <!-- User List -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-8">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">用户列表 (${users.length})</h2>
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">用户列表 (${users.total})</h2>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
@@ -110,12 +110,13 @@ function render(container) {
                 <th class="pb-3 font-medium">注册时间</th>
                 <th class="pb-3 font-medium">今日已用</th>
                 <th class="pb-3 font-medium">总生成</th>
+                <th class="pb-3 font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
-              ${users.length === 0 ? `
-                <tr><td colspan="5" class="py-8 text-center text-gray-400">暂无用户</td></tr>
-              ` : users.map(u => {
+              ${users.users.length === 0 ? `
+                <tr><td colspan="6" class="py-8 text-center text-gray-400">暂无用户</td></tr>
+              ` : users.users.map(u => {
                 const today = new Date().toISOString().slice(0, 10);
                 const usedToday = u.last_free_date === today ? (u.free_count_today || 0) : 0;
                 return `
@@ -125,11 +126,23 @@ function render(container) {
                   <td class="py-3 text-gray-500">${(u.created_at || '').substring(0, 10)}</td>
                   <td class="py-3 text-gray-900">${usedToday}</td>
                   <td class="py-3 text-gray-900">${u.total_generations || 0}</td>
+                  <td class="py-3">
+                    <button data-revoke="${u.id}" class="text-xs text-red-500 hover:text-red-700 revoke-user-btn" title="强制下线">强制下线</button>
+                  </td>
                 </tr>`;
               }).join('')}
             </tbody>
           </table>
         </div>
+        ${users.totalPages > 1 ? `
+        <div class="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+          <span class="text-xs text-gray-400">第 ${users.page} / ${users.totalPages} 页，共 ${users.total} 人</span>
+          <div class="flex gap-1">
+            <button id="user-page-prev" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 ${users.page <= 1 ? 'opacity-40 cursor-not-allowed' : ''}" ${users.page <= 1 ? 'disabled' : ''}>上一页</button>
+            <button id="user-page-next" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 ${users.page >= users.totalPages ? 'opacity-40 cursor-not-allowed' : ''}" ${users.page >= users.totalPages ? 'disabled' : ''}>下一页</button>
+          </div>
+        </div>
+        ` : ''}
       </div>
 
       <!-- Settings Row -->
@@ -168,7 +181,7 @@ function render(container) {
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">授权码</label>
-            <input id="smtp-pass" type="password" value="${escapeHtml(smtpSettings?.pass || '')}" placeholder="QQ邮箱授权码"
+            <input id="smtp-pass" type="password" value="" placeholder="${smtpSettings?.passSet ? '已设置，留空则不修改' : 'QQ邮箱授权码'}"
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
           </div>
         </div>
@@ -307,7 +320,7 @@ function render(container) {
                     <div class="flex-1">
                       <h4 class="font-medium text-gray-900">${escapeHtml(a.title)}</h4>
                       <p class="text-sm text-gray-500 mt-1">${escapeHtml(a.content).substring(0, 100)}${a.content.length > 100 ? '...' : ''}</p>
-                      <p class="text-xs text-gray-400 mt-2">${a.created_at} ${a.is_active ? '<span class="text-green-600 ml-2">● 启用中</span>' : '<span class="text-gray-400 ml-2">○ 已禁用</span>'}</p>
+                      <p class="text-xs text-gray-400 mt-2">${a.created_at} <span class="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded ml-2">${escapeHtml(a.display_size || 'md')}</span> ${a.is_active ? '<span class="text-green-600 ml-1">● 启用中</span>' : '<span class="text-gray-400 ml-1">○ 已禁用</span>'}</p>
                     </div>
                     <div class="flex items-center gap-2 ml-4">
                       <button data-toggle="${a.id}" data-active="${a.is_active ? 0 : 1}"
@@ -332,7 +345,15 @@ function render(container) {
       <div class="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl">
         <h3 class="text-lg font-bold mb-4">新建公告</h3>
         <input id="new-title" placeholder="公告标题" class="w-full px-4 py-3 border border-gray-300 rounded-xl mb-3 focus:ring-2 focus:ring-purple-500 outline-none">
-        <textarea id="new-content" rows="5" placeholder="公告内容（支持换行）" class="w-full px-4 py-3 border border-gray-300 rounded-xl mb-4 focus:ring-2 focus:ring-purple-500 outline-none resize-none"></textarea>
+        <textarea id="new-content" rows="5" placeholder="公告内容（支持换行）" class="w-full px-4 py-3 border border-gray-300 rounded-xl mb-3 focus:ring-2 focus:ring-purple-500 outline-none resize-none"></textarea>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">显示大小</label>
+          <select id="new-display-size" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none bg-white text-sm">
+            <option value="sm">小 (紧凑)</option>
+            <option value="md" selected>中 (默认)</option>
+            <option value="lg">大 (醒目)</option>
+          </select>
+        </div>
         <div class="flex gap-3">
           <button id="submit-announcement" class="gradient-btn flex-1 py-3 text-white font-medium rounded-xl">发布公告</button>
           <button id="cancel-announcement" class="flex-1 py-3 text-gray-600 border border-gray-300 rounded-xl hover:bg-gray-50">取消</button>
@@ -390,8 +411,12 @@ function bindEvents(container) {
     const user = document.getElementById('smtp-user')?.value?.trim() || '';
     const pass = document.getElementById('smtp-pass')?.value || '';
     try {
-      await api.updateSMTPSettings({ host, port, user, pass });
-      smtpSettings = { host, port, user, pass };
+      const body = { host, port, user };
+      if (pass) body.pass = pass;
+      await api.updateSMTPSettings(body);
+      smtpSettings = { host, port, user, passSet: true };
+      document.getElementById('smtp-pass').value = '';
+      document.getElementById('smtp-pass').placeholder = '已设置，留空则不修改';
       alert('SMTP 配置已保存');
     } catch (err) {
       alert(err.message);
@@ -521,9 +546,10 @@ function bindEvents(container) {
   document.getElementById('submit-announcement')?.addEventListener('click', async () => {
     const title = document.getElementById('new-title')?.value?.trim();
     const content = document.getElementById('new-content')?.value?.trim();
+    const display_size = document.getElementById('new-display-size')?.value || 'md';
     if (!title || !content) { alert('标题和内容不能为空'); return; }
     try {
-      await api.createAnnouncement(title, content);
+      await api.createAnnouncement(title, content, display_size);
       if (createForm) createForm.style.display = 'none';
       stats = await api.adminStats();
       render(container);
@@ -559,6 +585,34 @@ function bindEvents(container) {
       }
     });
   });
+
+  // User list pagination
+  document.getElementById('user-page-prev')?.addEventListener('click', () => loadUsers(users.page - 1));
+  document.getElementById('user-page-next')?.addEventListener('click', () => loadUsers(users.page + 1));
+
+  // Revoke user tokens (force logout)
+  container.querySelectorAll('.revoke-user-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('确定要强制下线该用户吗？其所有设备的登录状态将被清除。')) return;
+      try {
+        await api.revokeUser(btn.dataset.revoke);
+        alert('已强制下线');
+        loadUsers(users.page);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+}
+
+async function loadUsers(page) {
+  try {
+    users = await api.getUsers(page, 20);
+  } catch {
+    users = { users: [], total: 0, page: 1, totalPages: 1 };
+  }
+  const app = document.getElementById('app');
+  if (app) renderAdminPage(app);
 }
 
 function escapeHtml(str) {

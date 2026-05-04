@@ -1,13 +1,27 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
 import { get, run } from '../db.js';
 import { sendVerificationCode } from '../services/email.js';
 import { signToken } from '../middleware/auth.js';
 
 const router = Router();
 
+const sendCodeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 1,
+  message: { error: '请60秒后再发送验证码' },
+  keyGenerator: (req) => req.body?.email || req.ip,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: { error: '请求过于频繁，请稍后再试' },
+});
+
 function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 function hashPassword(password) {
@@ -36,7 +50,7 @@ router.get('/verification-setting', (req, res) => {
 });
 
 // Send verification code (for registration)
-router.post('/send-code', async (req, res) => {
+router.post('/send-code', sendCodeLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email || !email.includes('@')) {
@@ -77,14 +91,17 @@ router.post('/send-code', async (req, res) => {
 });
 
 // Register (with optional email verification)
-router.post('/register', (req, res) => {
+router.post('/register', authLimiter, (req, res) => {
   try {
     const { email, code, password } = req.body;
     if (!email || !email.includes('@')) {
       return res.status(400).json({ error: '请输入有效的邮箱地址' });
     }
-    if (!password || password.length < 6) {
-      return res.status(400).json({ error: '密码至少6位' });
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: '密码至少8位' });
+    }
+    if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({ error: '密码需包含大小写字母和数字' });
     }
 
     const existing = get('SELECT * FROM users WHERE email = ?', [email]);
@@ -111,9 +128,11 @@ router.post('/register', (req, res) => {
     }
 
     const hashed = hashPassword(password);
-    const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase();
     const isAdmin = email.toLowerCase() === adminEmail;
-    run('INSERT INTO users (email, password, role) VALUES (?, ?, ?)', [email, hashed, isAdmin ? 'admin' : 'user']);
+    if (isAdmin) {
+      return res.status(400).json({ error: '该邮箱为管理员邮箱，请通过管理员登录' });
+    }
+    run('INSERT INTO users (email, password, role) VALUES (?, ?, ?)', [email, hashed, 'user']);
 
     const user = get('SELECT * FROM users WHERE email = ?', [email]);
     const token = signToken(user);
@@ -134,7 +153,7 @@ router.post('/register', (req, res) => {
 });
 
 // Login
-router.post('/login', (req, res) => {
+router.post('/login', authLimiter, (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -142,12 +161,8 @@ router.post('/login', (req, res) => {
     }
 
     const user = get('SELECT * FROM users WHERE email = ?', [email]);
-    if (!user) {
-      return res.status(401).json({ error: '邮箱未注册，请先注册' });
-    }
-
-    if (!user.password || !verifyPassword(password, user.password)) {
-      return res.status(401).json({ error: '密码错误' });
+    if (!user || !user.password || !verifyPassword(password, user.password)) {
+      return res.status(401).json({ error: '邮箱或密码错误' });
     }
 
     const token = signToken(user);
@@ -168,17 +183,18 @@ router.post('/login', (req, res) => {
 });
 
 // Admin password login (bypasses email verification)
-router.post('/admin-login', (req, res) => {
+const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase();
+const adminPasswordHash = process.env.ADMIN_PASSWORD ? hashPassword(process.env.ADMIN_PASSWORD) : null;
+
+router.post('/admin-login', authLimiter, (req, res) => {
   try {
     const { email, password } = req.body;
-    const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase();
-    const adminPassword = process.env.ADMIN_PASSWORD || '';
 
     if (!email || !password) {
       return res.status(400).json({ error: '请输入邮箱和密码' });
     }
 
-    if (email.toLowerCase() !== adminEmail || password !== adminPassword) {
+    if (!adminPasswordHash || email.toLowerCase() !== adminEmail || !verifyPassword(password, adminPasswordHash)) {
       return res.status(401).json({ error: '邮箱或密码错误' });
     }
 
@@ -186,9 +202,6 @@ router.post('/admin-login', (req, res) => {
     if (!user) {
       run('INSERT INTO users (email, password, role) VALUES (?, ?, ?)', [email, hashPassword(password), 'admin']);
       user = get('SELECT * FROM users WHERE email = ?', [email]);
-    } else if (user.role !== 'admin') {
-      run('UPDATE users SET role = ? WHERE id = ?', ['admin', user.id]);
-      user.role = 'admin';
     }
 
     const token = signToken(user);
@@ -197,7 +210,7 @@ router.post('/admin-login', (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        role: 'admin',
+        role: user.role,
         freeCountToday: user.free_count_today || 0,
         lastFreeDate: user.last_free_date || '',
       },

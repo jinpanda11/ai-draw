@@ -88,9 +88,10 @@ export const api = {
 
   // Admin
   adminStats: () => request('/admin/stats'),
-  getUsers: () => request('/admin/users'),
-  createAnnouncement: (title, content) =>
-    request('/admin/announcements', { method: 'POST', body: { title, content } }),
+  getUsers: (page = 1, pageSize = 20) => request(`/admin/users?page=${page}&pageSize=${pageSize}`),
+  revokeUser: (id) => request(`/admin/users/${id}/revoke`, { method: 'PUT' }),
+  createAnnouncement: (title, content, display_size) =>
+    request('/admin/announcements', { method: 'POST', body: { title, content, display_size } }),
   updateAnnouncement: (id, data) =>
     request(`/admin/announcements/${id}`, { method: 'PUT', body: data }),
   deleteAnnouncement: (id) =>

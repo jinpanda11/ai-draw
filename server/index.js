@@ -1,11 +1,14 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { spawn } from 'child_process';
 import crypto from 'crypto';
+import { existsSync, mkdirSync, createWriteStream } from 'fs';
 import { initDb, all, get } from './db.js';
 
 import authRoutes from './routes/auth.js';
@@ -19,8 +22,25 @@ import userRoutes from './routes/user.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Audit logging
+const LOG_DIR = join(__dirname, '..', 'logs');
+if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
+const accessLogStream = createWriteStream(join(LOG_DIR, 'access.log'), { flags: 'a' });
+
+app.use(morgan('combined', { stream: accessLogStream }));
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('dev')); // also log to console in dev
+}
+
 // Middleware
-app.use(cors());
+app.use(helmet({
+  contentSecurityPolicy: false, // CSP managed by frontend meta tags
+  crossOriginEmbedderPolicy: false,
+}));
+app.use(cors({
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true,
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 
 // Static files - serve generated images and uploads
@@ -58,16 +78,30 @@ app.get('/api/public-config', (req, res) => {
 
 // GitHub webhook for auto-deploy
 app.post('/api/webhook', (req, res) => {
-  const secret = process.env.WEBHOOK_SECRET || 'ai-draw-webhook';
-  const sig = req.headers['x-hub-signature-256'] || '';
-  const body = JSON.stringify(req.body);
-  const hmac = crypto.createHmac('sha256', secret).update(body).digest('hex');
+  try {
+    const secret = process.env.WEBHOOK_SECRET;
+    if (!secret) return res.status(500).json({ error: 'Webhook not configured' });
 
-  res.sendStatus(sig === `sha256=${hmac}` ? 200 : 403);
+    const sig = req.headers['x-hub-signature-256'] || '';
+    const body = JSON.stringify(req.body);
+    const hmac = crypto.createHmac('sha256', secret).update(body).digest('hex');
+    const expected = `sha256=${hmac}`;
 
-  if (sig === `sha256=${hmac}` && req.body?.ref === 'refs/heads/main') {
+    if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+      return res.sendStatus(403);
+    }
+
+    const event = req.headers['x-github-event'];
+    if (event !== 'push' || req.body?.ref !== 'refs/heads/main') {
+      return res.sendStatus(200); // acknowledge but don't deploy
+    }
+
+    res.sendStatus(200);
+
     const deployScript = join(__dirname, '..', 'deploy.sh');
     spawn('bash', [deployScript], { detached: true, stdio: 'ignore' }).unref();
+  } catch {
+    res.sendStatus(500);
   }
 });
 
