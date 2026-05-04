@@ -39,6 +39,15 @@ router.post('/', authMiddleware, checkQuota, async (req, res) => {
       return res.status(500).json({ error: 'API地址未配置' });
     }
 
+    // Resolve relative reference URLs to absolute URLs for AI API access
+    const publicUrl = process.env.PUBLIC_URL || '';
+    const resolvedUrls = referenceUrls.map(u => {
+      if (u.startsWith('/') && publicUrl) {
+        return publicUrl + u;
+      }
+      return u;
+    });
+
     // Build the full prompt (append negative prompt if provided)
     let fullPrompt = prompt.trim();
     if (negativePrompt && negativePrompt.trim()) {
@@ -53,7 +62,7 @@ router.post('/', authMiddleware, checkQuota, async (req, res) => {
       prompt: fullPrompt,
       aspectRatio,
       quality,
-      urls: referenceUrls,
+      urls: resolvedUrls,
       webHook: '-1', // Return id immediately for polling
       shutProgress: false,
     });
