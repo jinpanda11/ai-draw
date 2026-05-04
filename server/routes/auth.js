@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { get, run } from '../db.js';
 import { sendVerificationCode } from '../services/email.js';
 import { signToken } from '../middleware/auth.js';
@@ -11,7 +11,7 @@ const sendCodeLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 1,
   message: { error: '请60秒后再发送验证码' },
-  keyGenerator: (req) => req.body?.email || req.ip,
+  keyGenerator: (req) => req.body?.email || ipKeyGenerator(req),
 });
 
 const authLimiter = rateLimit({

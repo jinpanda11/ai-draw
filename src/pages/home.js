@@ -88,10 +88,7 @@ function render() {
       return `
     <div class="modal-overlay" id="announcement-modal">
       <div class="modal-content max-w-lg w-full animate-fade-in">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-bold">${escapeHtml(announcement.title)}</h3>
-          <button id="close-announcement" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
-        </div>
+        <h3 class="text-lg font-bold mb-4">${escapeHtml(announcement.title)}</h3>
         <p class="text-gray-600 whitespace-pre-wrap ${textSize}">${escapeHtml(announcement.content)}</p>
         <button id="dismiss-announcement" class="gradient-btn w-full mt-4 ${modalPy} text-white font-medium rounded-lg">我知道了</button>
       </div>
@@ -238,7 +235,7 @@ function render() {
             <span class="font-semibold">${escapeHtml(announcement.title)}：</span>${escapeHtml(announcement.content)}
           </p>
         </div>
-        <button id="dismiss-banner" class="text-purple-400 hover:text-purple-600 flex-shrink-0 ml-2 text-lg leading-none">&times;</button>
+        <!-- 公告栏不可关闭 -->
       </div>
     </div>
     `})() : ''}
@@ -603,19 +600,9 @@ function bindEvents() {
     if (e.key === 'Enter') document.getElementById('register-submit-btn')?.click();
   });
 
-  // Announcement
+  // Announcement — only dismiss per session, no persistence
   document.getElementById('dismiss-announcement')?.addEventListener('click', () => {
     state.announcementDismissed = true;
-    if (state.announcement) localStorage.setItem('read_announcement', String(state.announcement.id));
-    render();
-  });
-  document.getElementById('close-announcement')?.addEventListener('click', () => {
-    state.announcementDismissed = true;
-    if (state.announcement) localStorage.setItem('read_announcement', String(state.announcement.id));
-    render();
-  });
-  document.getElementById('dismiss-banner')?.addEventListener('click', () => {
-    state.announcement = null;
     render();
   });
 
@@ -808,11 +795,9 @@ async function checkAnnouncement() {
   try {
     const data = await api.getActiveAnnouncement();
     if (data && data.id) {
-      // Always show banner for active announcement
+      // Always show banner and force popup on every page load
       state.announcement = data;
-      // Only show popup if not previously read
-      const readId = localStorage.getItem('read_announcement');
-      state.announcementDismissed = (readId === String(data.id));
+      state.announcementDismissed = false;
     } else {
       state.announcement = null;
       state.announcementDismissed = true;
