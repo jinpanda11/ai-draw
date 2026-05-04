@@ -89,7 +89,7 @@ function render() {
     <div class="modal-overlay" id="announcement-modal">
       <div class="modal-content max-w-lg w-full animate-fade-in">
         <h3 class="text-lg font-bold mb-4">${escapeHtml(announcement.title)}</h3>
-        <p class="text-gray-600 whitespace-pre-wrap ${textSize}">${escapeHtml(announcement.content)}</p>
+        <p class="text-gray-600 whitespace-pre-wrap ${textSize}">${linkify(escapeHtml(announcement.content))}</p>
         <button id="dismiss-announcement" class="gradient-btn w-full mt-4 ${modalPy} text-white font-medium rounded-lg">我知道了</button>
       </div>
     </div>
@@ -232,7 +232,7 @@ function render() {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
           </svg>
           <p class="${textSize} text-purple-700 font-medium truncate">
-            <span class="font-semibold">${escapeHtml(announcement.title)}：</span>${escapeHtml(announcement.content)}
+            <span class="font-semibold">${escapeHtml(announcement.title)}：</span>${linkify(escapeHtml(announcement.content))}
           </p>
         </div>
         <!-- 公告栏不可关闭 -->
@@ -810,6 +810,12 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function linkify(text) {
+  if (!text) return '';
+  const urlRe = /(https?:\/\/[^\s<]+)/g;
+  return text.replace(urlRe, '<a href="$1" target="_blank" rel="noopener" class="text-purple-600 underline hover:text-purple-800">$1</a>');
 }
 
 function escapeAttr(str) {
