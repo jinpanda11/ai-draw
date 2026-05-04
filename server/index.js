@@ -32,6 +32,9 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev')); // also log to console in dev
 }
 
+// Trust reverse proxy (nginx) for rate limiting and IP detection
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet({
   contentSecurityPolicy: false, // CSP managed by frontend meta tags
